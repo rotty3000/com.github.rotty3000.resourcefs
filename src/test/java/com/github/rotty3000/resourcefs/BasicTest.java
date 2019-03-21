@@ -20,39 +20,26 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.net.URI;
 import java.net.URL;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystemAlreadyExistsException;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.ServiceLoader;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.launch.Framework;
-import org.osgi.framework.launch.FrameworkFactory;
 
-public class ResourceRFTest {
+public class BasicTest extends BaseTest {
 
 	@Rule
 	public TemporaryFolder tmp = new TemporaryFolder();
@@ -194,158 +181,6 @@ public class ResourceRFTest {
 				assertEquals("com.google.guava", jar.getManifest().getMainAttributes().getValue("Bundle-SymbolicName"));
 			}
 		}
-	}
-
-	@Test
-	public void loadAJar_ZipInoutStream() throws Exception {
-		List<URL> urls = Arrays.asList(getClass().getResource("jars/guava-14.0.1.jar"));
-
-		try (FileSystem fileSystem = createFileSystem("foo", urls)) {
-			assertNotNull(fileSystem);
-
-			Path rootDir = fileSystem.getRootDirectories()
-				.iterator()
-				.next();
-
-			Optional<Path> first = Files.find(rootDir, 30, (p, a) -> p.toFile().getName().endsWith(".jar"))
-				.sorted().findFirst();
-
-			assertTrue(first.isPresent());
-
-			Path outDir = Paths.get(tmp.newFolder().toURI());
-			byte[] buffer = new byte[2048];
-
-			try (InputStream is = fileSystem.provider().newInputStream(first.get());
-					ZipInputStream zis = new ZipInputStream(is)) {
-
-				ZipEntry ze;
-
-				while ((ze = zis.getNextEntry()) != null) {
-					if (ze.isDirectory()) {
-						continue;
-					}
-
-					Path filePath = outDir.resolve(ze.getName());
-					filePath.toFile().getParentFile().mkdirs();
-
-					try (FileOutputStream fos = new FileOutputStream(filePath.toFile());
-							BufferedOutputStream bos = new BufferedOutputStream(fos, buffer.length)) {
-
-						int len;
-						while ((len = zis.read(buffer)) > 0) {
-							bos.write(buffer, 0, len);
-						}
-					}
-				}
-			}
-			System.out.println("Done!");
-		}
-	}
-
-	@Ignore("This doesn't work because Zip FS only accepts Paths from the default FS")
-	@Test
-	public void loadAJar_ZipFS_usingPath() throws Exception {
-		List<URL> urls = Arrays.asList(getClass().getResource("jars/guava-14.0.1.jar"));
-
-		try (FileSystem fileSystem = createFileSystem("foo", urls)) {
-			assertNotNull(fileSystem);
-
-			Path rootDir = fileSystem.getRootDirectories()
-				.iterator()
-				.next();
-
-			Optional<Path> first = Files.find(rootDir, 30, (p, a) -> p.toFile().getName().endsWith(".jar"))
-				.sorted().findFirst();
-
-			assertTrue(first.isPresent());
-
-			FileSystem jarFS = FileSystems.newFileSystem(first.get(), null);
-
-			assertNotNull(jarFS);
-		}
-	}
-
-	@Test
-	public void loadAJar_ZipFS_usingURI() throws Exception {
-		List<URL> urls = Arrays.asList(getClass().getResource("jars/guava-14.0.1.jar"));
-
-		try (FileSystem fileSystem = createFileSystem("foo", urls)) {
-			assertNotNull(fileSystem);
-
-			Path rootDir = fileSystem.getRootDirectories()
-				.iterator()
-				.next();
-
-			Optional<Path> first = Files.find(rootDir, 30, (p, a) -> p.toFile().getName().endsWith(".jar"))
-				.sorted().findFirst();
-
-			assertTrue(first.isPresent());
-
-			URI jarURI = new URI("jar", first.get().toUri().toString(), null);
-
-			// create a Zip file system from the JAR
-
-			FileSystem jarFS = FileSystems.newFileSystem(jarURI, Collections.emptyMap());
-
-			assertNotNull(jarFS);
-
-			Path zipRootDir = jarFS.getRootDirectories()
-				.iterator()
-				.next();
-
-			List<Path> zipPaths = Files.find(zipRootDir, 30, (p, a) -> a.isRegularFile())
-				.sorted().collect(Collectors.toList());
-
-			assertEquals(1597, zipPaths.size());
-		}
-	}
-
-	@Ignore("Currently testing with equinox which handles bundles using the ZipFile API which doesn't support custom FS providers")
-	@Test
-	public void populateFramework() throws Exception {
-		List<URL> urls = Arrays.asList(getClass().getResource("jars/guava-14.0.1.jar"));
-
-		try (FileSystem fileSystem = createFileSystem("foo", urls)) {
-			assertNotNull(fileSystem);
-
-			FrameworkFactory factory = ServiceLoader.load(FrameworkFactory.class).iterator().next();
-
-			Framework framework = factory.newFramework(
-				Collections.singletonMap("osgi.install.area", tmp.newFolder().getAbsolutePath()));
-
-			try {
-				framework.init();
-
-				framework.start();
-
-				Path rootDir = fileSystem.getRootDirectories()
-					.iterator()
-					.next();
-
-				BundleContext bundleContext = framework.getBundleContext();
-
-				Files.find(rootDir, 30, (p, a) -> p.toFile().getName().endsWith(".jar"))
-					.sorted().forEach(path -> {
-						try {
-							String ref = "reference:" + path.toString();
-							bundleContext.installBundle(ref);
-						}
-						catch (Exception e) {
-							e.printStackTrace();
-						}
-					});
-			}
-			finally {
-				framework.stop();
-			}
-		}
-	}
-
-	FileSystem createFileSystem(String authority, List<URL> urls) throws Exception {
-		URI fsRoot = new URI(ResourceFS.SCHEME, "foo", null, null, null);
-
-		return FileSystems.newFileSystem(
-			fsRoot, Collections.singletonMap(ResourceFS.URLS, urls));
 	}
 
 }
