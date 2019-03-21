@@ -342,8 +342,10 @@ public class ResourceRFTest {
 	}
 
 	FileSystem createFileSystem(String authority, List<URL> urls) throws Exception {
-		return FileSystems.newFileSystem(new URI(ResourceFS.SCHEME, authority, null, null, null),
-			Collections.singletonMap(ResourceFS.URLS, urls));
+		URI fsRoot = new URI(ResourceFS.SCHEME, "foo", null, null, null);
+
+		return FileSystems.newFileSystem(
+			fsRoot, Collections.singletonMap(ResourceFS.URLS, urls));
 	}
 
 }
