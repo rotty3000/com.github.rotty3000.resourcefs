@@ -65,19 +65,20 @@ public class OSGiFrameworkTest extends BaseTest {
 				BundleContext bundleContext = framework.getBundleContext();
 
 				Files.find(rootDir, 30, (p, a) -> p.toFile().getName().endsWith(".jar"))
-					.sorted().forEach(path -> {
-						try {
-							String ref = "reference:" + path.toString();
-							bundleContext.installBundle(ref);
-						}
-						catch (Exception e) {
-							e.printStackTrace();
-						}
-					});
+					.sorted().forEach(path -> installBundle(bundleContext, "reference:" + path.toString()));
 			}
 			finally {
 				framework.stop();
 			}
+		}
+	}
+
+	void installBundle(BundleContext bundleContext, String location) {
+		try {
+			bundleContext.installBundle(location);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
